@@ -1,0 +1,4 @@
+name = ulogin
+description = "Авторизация через uLogin"
+core = 6.x
+package = User interface
