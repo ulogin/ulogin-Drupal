@@ -1,0 +1,51 @@
+<?php
+function ulogin_button() {
+	return '<div><a href="#" id="uLogin"><img src="http://ulogin.ru/img/button.png" width=187 height=30 alt="МультиВход"/></a></div><script src="http://ulogin.ru/js/widget.js?display=window&fields=first_name,last_name,photo,email&optional=photo_big&redirect_uri=' . urlencode(url('ulogin/token', array('absolute' => true))) . '"></script>';
+}
+function ulogin_form_user_login_block_alter(&$form) {
+	$form['ulogin'] = array('#value' => ulogin_button(), '#markup' => ulogin_button());
+}
+function ulogin_form_user_register_alter(&$form) {
+	$form['ulogin'] = array('#value' => ulogin_button(), '#markup' => ulogin_button());
+}
+function ulogin_form_user_login_alter(&$form) {
+	$form['ulogin'] = array('#value' => ulogin_button(), '#markup' => ulogin_button());
+}
+function ulogin_menu() {
+	return array('ulogin/token' => array('access callback' => true, 'page callback' => 'ulogin_token', 'type' => MENU_CALLBACK));
+}
+function ulogin_token() {
+	error_reporting(0);
+	global $user;
+	$data = drupal_http_request('http://ulogin.ru/token.php?token=' . $_POST['token'] . '&host=' . $_SERVER['HTTP_HOST']);
+	$data = json_decode($data->data, true);
+	if (isset($data['uid'])) {
+		if (function_exists('file_save')) {
+			$photo = drupal_http_request($data['photo_big'] ? $data['photo_big'] : $data['photo']);
+			$file = file_save_data($photo->data, 'public://' . 'ulogin_' . $data['network'] . '_' . $data['uid'] . '.jpg');
+		}
+		$account = user_external_load('ulogin_' . $data['network'] . '_' . $data['uid']);
+		if (!$account || $account->uid == 0) {
+			try {
+				$account = user_save(drupal_anonymous_user(), array('authname_ulogin' => 'ulogin_' . $data['network'] . '_' . $data['uid'], 'init' => 'ulogin_' . $data['network'] . '_' . $data['uid'], 'status' => 1, 'mail' => $data['email'], 'name' => $data['first_name'] . ' ' . $data['last_name'], 'pass' => user_password(), 'picture' => $file->fid));
+				if (!$account) throw new Exception('');
+			} catch (Exception $e) {
+				$next = true;
+				$i = 0;
+				while ($next) {
+					$i++;
+					try {
+						$account = user_save(drupal_anonymous_user(), array('authname_ulogin' => 'ulogin_' . $data['network'] . '_' . $data['uid'], 'init' => 'ulogin_' . $data['network'] . '_' . $data['uid'], 'status' => 1, 'mail' => $data['email'], 'name' => $data['first_name'] . ' ' . $data['last_name'] . ' ' . $i, 'pass' => user_password(), 'picture' => $file->fid));
+						if (!$account) throw new Exception('');
+						$next = false;
+					} catch (Exception $e) {}
+				}					
+			}
+			user_set_authmaps($account, array("authname_ulogin" => 'ulogin_' . $data['network'] . '_' . $data['uid']));
+		}
+		$user = $account;
+		$form_state['uid'] = $account->uid;
+		user_login_submit(array(), $form_state);
+	}
+	drupal_goto();
+}
