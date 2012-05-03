@@ -1,0 +1,82 @@
+<?php
+/**
+ * Implements hook_install().
+ */
+function ulogin_install() {
+  drupal_install_schema('ulogin');
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function ulogin_uninstall() {
+  drupal_uninstall_schema('ulogin');
+  
+  variable_del('ulogin_display');
+  variable_del('ulogin_fields');
+  variable_del('ulogin_optional');
+  variable_del('ulogin_providers');
+  variable_del('ulogin_hidden');
+  variable_del('ulogin_destination');
+  variable_del('ulogin_forms');
+  variable_del('ulogin_duplicate_emails');
+  variable_del('ulogin_redirect');
+  variable_del('ulogin_pictures');
+  variable_del('ulogin_adv_providers');
+  variable_del('ulogin_adv_hidden');
+}
+
+/**
+ * Implements hook_schema().
+ */
+function ulogin_schema() {
+  $schema = array();
+  
+  $schema['ulogin_identity'] = array(
+    'description' => 'Holds identities from uLogin service.',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Unique id of uLogin identity.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'description' => 'The {users}.uid that owns this uLogin identity.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'network' => array(
+        'description' => 'The authentication provider for this uLogin identity.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'ulogin_uid' => array(
+        'description' => 'The uLogin uid for this uLogin identity.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'data' => array(
+        'description' => 'A serialized array containing information from uLogin service.',
+        'type' => 'blob',
+        'not null' => TRUE,
+        'size' => 'normal',
+      ),
+    ),
+    'indexes' => array(
+      'uid' => array('uid'),
+    ),
+    'unique keys' => array(
+      'network_ulogin_uid' => array('network', 'ulogin_uid'),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  return $schema;
+}

@@ -1,47 +1,309 @@
 <?php
-function ulogin_button() {
-	return '<div><a href="#" id="uLogin"><img src="http://ulogin.ru/img/button.png" width=187 height=30 alt="МультиВход"/></a></div><script src="http://ulogin.ru/js/widget.js?display=window&fields=first_name,last_name,photo,email&redirect_uri=' . urlencode(url('ulogin/token', array('absolute' => true))) . '"></script>';
+
+if (module_exists('token')) {
+  include_once(drupal_get_path('module', 'ulogin') . '/ulogin.tokens.inc');
 }
-function ulogin_form_user_login_block_alter(&$form) {
-	$form['ulogin'] = array('#value' => ulogin_button(), '#markup' => ulogin_button());
+
+/**
+ * Implements hook_perm().
+ */
+function ulogin_perm() {
+  return array('use ulogin');
 }
-function ulogin_form_user_register_alter(&$form) {
-	$form['ulogin'] = array('#value' => ulogin_button(), '#markup' => ulogin_button());
-}
-function ulogin_form_user_login_alter(&$form) {
-	$form['ulogin'] = array('#value' => ulogin_button(), '#markup' => ulogin_button());
-}
+
+/**
+ * Implements hook_menu().
+ */
 function ulogin_menu() {
-	return array('ulogin/token' => array('access callback' => true, 'page callback' => 'ulogin_token', 'type' => MENU_CALLBACK));
+  $items = array();
+  
+  $items['admin/settings/ulogin'] = array(
+    'title' => 'uLogin',
+    'description' => 'Manage uLogin widget default settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ulogin_settings_form'),
+    //'access callback' => 'user_access',
+    'access arguments' => array('administer site configuration'),
+    'file' => 'ulogin.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/settings/ulogin/main'] = array(
+    'title' => 'Main',
+    'description' => 'Manage uLogin widget default settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ulogin_settings_form'),
+    //'access callback' => 'user_access',
+    'access arguments' => array('administer site configuration'),
+    'file' => 'ulogin.admin.inc',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+  $items['admin/settings/ulogin/advanced'] = array(
+    'title' => 'Advanced',
+    'description' => 'Manage uLogin widget default settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ulogin_adv_settings_form'),
+    //'access callback' => 'user_access',
+    'access arguments' => array('administer site configuration'),
+    'file' => 'ulogin.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 10,
+  );
+  
+  $items['ulogin'] = array(
+    'page callback' => 'ulogin_callback',
+    //'access callback' => 'user_access',
+    'access arguments' => array('use ulogin'),
+    'type' => MENU_CALLBACK,
+    'file' => 'ulogin.pages.inc',
+  );
+  
+  $items['user/%user/ulogin'] = array(
+    'title' => 'uLogin identities',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ulogin_user_identity', 1),
+    'access callback' => 'user_edit_access',
+    'access arguments' => array(1),
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'ulogin.pages.inc',
+  );
+  $items['user/%user/ulogin/delete'] = array(
+    'title' => 'Delete uLogin identity',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ulogin_user_identity_delete', 1, 4),
+    'access callback' => 'user_edit_access',
+    'access arguments' => array(1),
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'ulogin.pages.inc',
+  );
+  
+  return $items;
 }
-function ulogin_token() {
-	error_reporting(0);
-	global $user;
-	$data = drupal_http_request('http://ulogin.ru/token.php?token=' . $_POST['token'] . '&host=' . $_SERVER['HTTP_HOST']);
-	$data = json_decode($data->data, true);
-	if (isset($data['uid'])) {
-		$account = user_external_load('ulogin_' . $data['network'] . '_' . $data['uid']);
-		if (!$account || $account->uid == 0) {
-			try {
-				$account = user_save(drupal_anonymous_user(), array('authname_ulogin' => 'ulogin_' . $data['network'] . '_' . $data['uid'], 'init' => 'ulogin_' . $data['network'] . '_' . $data['uid'], 'status' => 1, 'mail' => $data['email'], 'name' => $data['first_name'] . ' ' . $data['last_name'], 'pass' => user_password()));
-				if (!$account) throw new Exception('');
-			} catch (Exception $e) {
-				$next = true;
-				$i = 0;
-				while ($next) {
-					$i++;
-					try {
-						$account = user_save(drupal_anonymous_user(), array('authname_ulogin' => 'ulogin_' . $data['network'] . '_' . $data['uid'], 'init' => 'ulogin_' . $data['network'] . '_' . $data['uid'], 'status' => 1, 'mail' => $data['email'], 'name' => $data['first_name'] . ' ' . $data['last_name'] . ' ' . $i, 'pass' => user_password()));
-						if (!$account) throw new Exception('');
-						$next = false;
-					} catch (Exception $e) {}
-				}					
-			}
-			user_set_authmaps($account, array("authname_ulogin" => 'ulogin_' . $data['network'] . '_' . $data['uid']));
-		}
-		$user = $account;
-		$form_state['uid'] = $account->uid;
-		user_login_submit(array(), $form_state);
-	}
-	drupal_goto();
+
+/**
+ * Implements hook_user().
+ */
+function ulogin_user($op, &$edit, &$account, $category = NULL) {
+  global $ulogin_data;
+  if ($op == 'insert' && !empty($ulogin_data)) { // the user is being created
+    if (!empty($ulogin_data['email'])) {
+      // Set email address in the user table for this user.
+      db_query("UPDATE {users} SET mail = '%s' WHERE uid = %d", $ulogin_data['email'], $account->uid);
+    }
+    $edit['ulogin'] = $ulogin_data;
+  }
+  if ($op == 'delete') {
+    _ulogin_identity_delete_by_uid($account->uid);
+  }
+  //realname integration
+  if ($op == 'load' && module_exists('realname') && !empty($account->ulogin) && $account->name == $account->realname) {
+    $account->realname = $account->ulogin['first_name'] . ' ' . $account->ulogin['last_name'];
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function ulogin_form_alter(&$form, &$form_state, $form_id) {
+  _ulogin_form_alter($form, $form_state, $form_id);
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function ulogin_form_comment_form_alter(&$form, &$form_state) {
+  _ulogin_form_alter($form, $form_state, 'comment_form');
+}
+
+function _ulogin_form_alter(&$form, &$form_state, $form_id) {
+  if (user_access('use ulogin') && user_is_anonymous() &&
+    in_array($form_id, array_filter(variable_get('ulogin_forms', array('user_login', 'user_login_block'))))) {
+    $form['ulogin'] = array(
+      '#type' => 'ulogin_widget',
+      '#weight' => -100,
+    );
+  }
+}
+
+/**
+ * Implements hook_elements().
+ */
+function ulogin_elements() {
+  $types = array();
+  
+  $types['ulogin_widget'] = array(
+    '#input' => FALSE,
+    '#theme' => 'ulogin_widget',
+    '#theme_wrappers' => array('form_element'),
+    '#ulogin_id' => 'uLogin',
+    '#ulogin_display' => variable_get('ulogin_display', 'panel'),
+    '#ulogin_fields' => implode(',', array_filter(variable_get('ulogin_fields', array('first_name', 'last_name', 'email', 'nickname', 'bdate', 'sex', 'photo', 'photo_big', 'country', 'city')))),
+    '#ulogin_optional' => '',
+    '#ulogin_providers' => variable_get('ulogin_adv_providers', '') ? variable_get('ulogin_adv_providers', '') : implode(',', array_filter(variable_get('ulogin_providers', array('vkontakte', 'odnoklassniki', 'mailru', 'facebook')))),
+    '#ulogin_hidden' => variable_get('ulogin_adv_hidden', '') ? variable_get('ulogin_adv_hidden', '') : implode(',', array_filter(variable_get('ulogin_hidden', array('twitter', 'google', 'yandex', 'livejournal', 'openid')))),
+    '#ulogin_destination' => variable_get('ulogin_destination', ''),
+    '#ulogin_redirect' => variable_get('ulogin_redirect', 0),
+  );
+  
+  //TODO: how to make it to respect custom value for '#ulogin_redirect'
+  if ($types['ulogin_widget']['#ulogin_redirect']) {
+    //$types['ulogin_widget']['#attached']['js'][drupal_get_path('module', 'ulogin') . '/js/ulogin.js'] = array('type' => 'file');
+  }
+  
+  return $types;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function ulogin_theme($existing, $type, $theme, $path) {
+  return array(
+    'ulogin_widget' => array(
+      'arguments' => array('element' => NULL),
+    ),
+  );
+}
+
+function theme_ulogin_widget($element) {
+  $output = '';
+  
+  static $counter;
+  if (!isset($counter)) {
+    $counter = 0;
+    //adding js only once
+    drupal_add_js('document.write(unescape("%3Cscript src=\'http://ulogin.ru/js/ulogin.js\' type=\'text/javascript\'%3E%3C/script%3E"));', 'inline');
+  }
+  $increment = FALSE;
+  if ($element['#ulogin_id'] == 'uLogin') {
+    $increment = TRUE;
+    $counter++;
+  }
+  
+  if (variable_get('ulogin_redirect', 0)) {
+    $callback = 'Drupalulogintoken';
+    $redirect = url('sites/all/libraries/ulogin/ulogin_xd.html', array('absolute' => TRUE));
+  }
+  else {
+    $callback = '';
+    $redirect = _ulogin_token_url($element['#ulogin_destination']);
+  }
+  
+  if ($element['#ulogin_display'] == 'small' || $element['#ulogin_display'] == 'panel') {
+    $output = '<div ' .
+      'id="' . $element['#ulogin_id'] . ($increment ? '-' . $counter : '') . '"' .
+      'x-ulogin-params="display=' . $element['#ulogin_display'] .
+      '&fields=' . $element['#ulogin_fields'] .
+      '&optional=' . $element['#ulogin_optional'] .
+      '&providers=' . $element['#ulogin_providers'] .
+      '&hidden=' . $element['#ulogin_hidden'] .
+      '&callback=' . $callback .
+      '&redirect_uri=' . $redirect . '"></div>';
+  }
+  elseif ($element['#ulogin_display'] == 'window') {
+    $output = '<a href="#" ' .
+      'id="' . $element['#ulogin_id'] . ($increment ? '-' . $counter : '') . '"' .
+      'x-ulogin-params="display=' . $element['#ulogin_display'] .
+      '&fields=' . $element['#ulogin_fields'] .
+      '&optional=' . $element['#ulogin_optional'] .
+      //'&providers=' . $element['#ulogin_providers'] .
+      //'&hidden=' . $element['#ulogin_hidden'] .
+      '&callback=' . $callback .
+      '&redirect_uri=' . $redirect . '"><img src="http://ulogin.ru/img/button.png" width=187 height=30 alt="' . t('MultiAuthorization') . '"/></a>';
+  }
+  
+  return $output;
+}
+
+function _ulogin_token_url($destination = NULL) {
+  if (empty($destination)) {
+    $destination = drupal_get_destination();
+  }
+  else {
+    $destination = array('destination' => $destination);
+  }
+  
+  $token_url = url('ulogin', array('absolute' => TRUE, 'query' => $destination));
+  return urlencode($token_url);
+}
+
+function _ulogin_providers_list() {
+  return array(
+    'vkontakte' => t('VKontakte'),
+    'odnoklassniki' => t('Odnoklassniki'),
+    'mailru' => t('Mail.ru'),
+    'facebook' => t('Facebook'),
+    'twitter' => t('Twitter'),
+    'google' => t('Google'),
+    'yandex' => t('Yandex'),
+    'livejournal' => t('Live Journal'),
+    'openid' => t('OpenID'),
+    'lastfm' => t('Last.fm'),
+    'linkedin' => t('LinkedIn'),
+    'liveid' => t('Live ID'),
+    'soundcloud' => t('SoundCloud'),
+    'steam' => t('Steam'),
+    'flickr' => t('Flickr'),
+    'vimeo' => t('Vimeo'),
+    'youtube' => t('YouTube'),
+    'webmoney' => t('WebMoney'),
+  );
+}
+
+function _ulogin_fields_list() {
+  return array(
+    'first_name' => t('First name'),
+    'last_name' => t('Last name'),
+    'email' => t('Email'),
+    'nickname' => t('Nickname'),
+    'bdate' => t('Birthday'),
+    'sex' => t('Gender'),
+    'photo' => t('Photo'),
+    'photo_big' => t('Big photo'),
+    'country' => t('Country'),
+    'city' => t('City'),
+    'phone' => t('Phone'),
+  );
+}
+
+function _ulogin_make_username($data) {
+  return 'ulogin_' . $data['network'] . '_' . $data['uid'];
+}
+
+function _ulogin_identity_save($data) {
+  global $user;
+  //check if this identity is already registered - this might not be needed
+  //db_result(db_query("SELECT uid FROM {ulogin_identity} WHERE network = '%s' AND ulogin_uid = '%s'",
+  //  $data['network'], $data['uid']));
+  
+  db_query("INSERT INTO {ulogin_identity} (uid, network, ulogin_uid, data) VALUES (%d, '%s', '%s', '%s')",
+    $user->uid, $data['network'], $data['uid'], serialize($data));
+}
+
+function _ulogin_identity_load($data) {
+  $result = db_query("SELECT * FROM {ulogin_identity} WHERE network = '%s' AND ulogin_uid = '%s'", $data['network'], $data['uid']);
+  return db_fetch_array($result);
+}
+
+function _ulogin_identity_load_by_uid($uid) {
+  $result = db_query("SELECT * FROM {ulogin_identity} WHERE uid = '%d'", $uid);
+  $identities = array();
+  while ($identity = db_fetch_array($result)) {
+    $identities[$identity['id']] = $identity;
+  }
+  
+  return $identities;
+}
+
+function _ulogin_identity_load_by_id($id) {
+  $result = db_query("SELECT * FROM {ulogin_identity} WHERE id = '%d'", $id);
+  return db_fetch_array($result);
+}
+
+function _ulogin_identity_delete_by_uid($uid) {
+  $result = db_query("DELETE FROM {ulogin_identity} WHERE uid = '%d'", $uid);
+  return $result;
+}
+
+function _ulogin_identity_delete_by_id($id) {
+  $result = db_query("DELETE FROM {ulogin_identity} WHERE id = '%d'", $id);
+  return $result;
 }
