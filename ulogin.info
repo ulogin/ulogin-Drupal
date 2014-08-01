@@ -1,4 +1,6 @@
-name = ulogin
-description = "Авторизация через uLogin"
+name = uLogin
+description = uLogin — это инструмент, который позволяет пользователям получить единый доступ к различным Интернет-сервисам без необходимости повторной регистрации, а владельцам сайтов — получить дополнительный приток клиентов из социальных сетей и популярных порталов (Google, Яндекс, Mail.ru, ВКонтакте, Facebook и др.)
+version = 2.0.0
 core = 7.x
-package = User interface
+configure = admin/config/content/ulogin
+stylesheets[all][] = base.css

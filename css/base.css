@@ -1,0 +1,90 @@
+.ulogin_sync .merged {
+    margin-top:10px;
+}
+.ulogin_sync .merged, .ulogin_sync .description{
+    float:left;
+    clear:both;
+}
+.ulogin-button {
+    background-image: url(../img/panel.png);
+    margin-right: 10px;
+    cursor: pointer;
+    width:32px;
+    height:32px;
+    float:left;
+}
+.ulogin-button.vkontakte {
+    background-position: 0 -38px
+}
+.ulogin-button.odnoklassniki {
+    background-position: 0 -73px
+}
+.ulogin-button.mailru {
+    background-position: 0 -108px
+}
+.ulogin-button.facebook {
+    background-position: 0 -143px
+}
+.ulogin-button.twitter {
+    background-position: 0 -178px
+}
+.ulogin-button.google {
+    background-position: 0 -213px
+}
+.ulogin-button.yandex {
+    background-position: 0 -248px
+}
+.ulogin-button.livejournal {
+    background-position: 0 -283px
+}
+.ulogin-button.openid {
+    background-position: 0 -318px
+}
+.ulogin-button.guest {
+    background-position: 0 -353px
+}
+.ulogin-button.flickr {
+    background-position: 0 -388px
+}
+.ulogin-button.lastfm {
+    background-position: 0 -423px
+}
+.ulogin-button.linkedin {
+    background-position: 0 -458px
+}
+.ulogin-button.liveid {
+    background-position: 0 -493px
+}
+.ulogin-button.soundcloud {
+    background-position: 0 -528px
+}
+.ulogin-button.steam {
+    background-position: 0 -563px
+}
+.ulogin-button.uid {
+    background-position: 0 -598px
+}
+.ulogin-button.webmoney {
+    background-position: 0 -633px
+}
+.ulogin-button.youtube {
+    background-position: 0 -668px
+}
+.ulogin-button.foursquare {
+    background-position: 0 -703px
+}
+.ulogin-button.tumblr {
+    background-position: 0 -738px
+}
+.ulogin-button.googleplus {
+    background-position: 0 -773px
+}
+.ulogin-button.dudu {
+    background-position: 0 -808px
+}
+.ulogin-button.vimeo {
+    background-position: 0 -843px
+}
+.ulogin-button.instagram {
+    background-position: 0 -878px
+}

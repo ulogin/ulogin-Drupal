@@ -1,0 +1,50 @@
+<?php
+
+
+function ulogin_schema()
+{
+
+    $schema['ulogin_profile'] = array(
+        'fields'      => array(
+            'id'         => array('type' => 'serial',  'size'=>'normal',  'not null' => true),
+            'user_id'         => array('type' => 'int',  'size'=>'normal',  'unsigned' => true, 'not null' => true),
+            'uid'        => array('type' => 'varchar', 'length' => 50, 'not null' => true),
+            'identity'        => array('type' => 'varchar', 'length' => 255, 'not null' => true),
+            'network'        => array('type' => 'varchar', 'length' => 50, 'not null' => true),
+            'first_name'       => array('type' => 'varchar', 'length' => 50, 'not null' => true),
+            'last_name'       => array('type' => 'varchar', 'length' => 50),
+            'email'        => array('type' => 'varchar', 'length' => 100, 'not null' => true),
+            'profile'        => array('type' => 'varchar', 'length' => 255, 'not null' => true),
+            'nickname'        => array('type' => 'varchar', 'length' => 50),
+            'sex'        => array('type' => 'tinyint', 'mysql_type' => 'tinyint', 'length' => 1),
+            'bdate'        => array('type' => 'varchar', 'length' => '10'),
+            'phone'        => array('type' => 'varchar', 'length' => 20),
+            'city'        => array('type' => 'varchar', 'length' => 50),
+            'country'        => array('type' => 'varchar', 'length' => 50)
+        ),
+        'unique keys'  => array(
+            'user_key' => array('user_id', 'uid'),
+			'identity_key' => array('identity')
+        ),
+        'index keys' => array(
+            'identity_key' => array('identity')
+        ),
+        'foreign keys' => array(
+            'user_id' => array(
+                'table' => 'users',
+                'columns' => array('user_id' => 'uid'),
+            )
+        ),
+        'primary key' => array('id')
+    );
+
+    return $schema;
+}
+
+function ulogin_install() {
+    db_query('
+    ALTER TABLE  {ulogin_profile}
+    ADD FOREIGN KEY (user_id) REFERENCES  {users} (uid)
+    ON DELETE CASCADE ON UPDATE CASCADE
+  ');
+}
